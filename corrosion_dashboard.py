@@ -72,6 +72,7 @@ SALT_CHEMISTRY = {
     "KCl": (74.55, ("K+", 39.10, 1, 1), ("Cl-", 35.45, 1, 1)),
     "Na2SO4": (142.04, ("Na+", 22.99, 1, 2), ("SO4 2-", 96.06, 2, 1)),
 }
+
 ICORR_SCENARIOS = {
     "Low": 5.0,
     "Moderate": 10.0,
@@ -94,6 +95,8 @@ def severity_band(cr):
     if cr <= 0.25:
         return "High"
     return "Severe"
+
+
 def arrhenius_factor(temp_c, activation_energy=APPARENT_ACTIVATION_ENERGY_J_MOL):
     t_ref = REFERENCE_TEMPERATURE_C + 273.15
     t = np.asarray(temp_c, dtype=float) + 273.15
@@ -125,6 +128,7 @@ def build_ion_table(data):
             "Data type": "Calculated from salt formula + transcribed EC"
         })
     return pd.DataFrame(rows)
+
 
 def make_csv_download(frame):
     return frame.to_csv(index=False).encode("utf-8")
@@ -302,8 +306,7 @@ with tab_water:
     st.bar_chart(ref_chart, use_container_width=True)
     st.caption("Percentage change is calculated relative to the distilled-water reading.")
 
-
-ratio_view = data[["sample", "TDS_to_EC_ratio"]].copy()
+    ratio_view = data[["sample", "TDS_to_EC_ratio"]].copy()
     ratio_view.columns = ["Sample", "TDS / EC ratio"]
     st.markdown("**TDS-to-conductivity ratio check**")
     st.dataframe(ratio_view.round(3), use_container_width=True, hide_index=True)
@@ -342,7 +345,7 @@ with tab_sensitivity:
     st.line_chart(pH_sweep.set_index("pH")[["Hydrogen ion concentration (mol/L)"]], use_container_width=True)
     st.caption("These are thermodynamic indicators based on the assumptions in the supplied model, not corrosion-rate predictions.")
 
-st.markdown("**B. Conductivity and solution resistivity**")
+    st.markdown("**B. Conductivity and solution resistivity**")
     k_values = np.logspace(np.log10(10), np.log10(5000), 60)
     conductivity_sweep = pd.DataFrame({
         "Conductivity (µS/cm)": k_values,
@@ -443,3 +446,8 @@ with tab_downloads:
                 key=f"download_{safe_name}"
             )
 
+st.divider()
+st.caption(
+    "Academic demonstration dashboard. Verify all instrument units, measured values, "
+    "model assumptions, equations and severity criteria with your supervisor before final reporting."
+)
