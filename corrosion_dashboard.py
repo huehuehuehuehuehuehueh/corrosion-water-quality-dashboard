@@ -72,7 +72,6 @@ SALT_CHEMISTRY = {
     "KCl": (74.55, ("K+", 39.10, 1, 1), ("Cl-", 35.45, 1, 1)),
     "Na2SO4": (142.04, ("Na+", 22.99, 1, 2), ("SO4 2-", 96.06, 2, 1)),
 }
-
 ICORR_SCENARIOS = {
     "Low": 5.0,
     "Moderate": 10.0,
@@ -95,8 +94,6 @@ def severity_band(cr):
     if cr <= 0.25:
         return "High"
     return "Severe"
-
-
 def arrhenius_factor(temp_c, activation_energy=APPARENT_ACTIVATION_ENERGY_J_MOL):
     t_ref = REFERENCE_TEMPERATURE_C + 273.15
     t = np.asarray(temp_c, dtype=float) + 273.15
@@ -129,7 +126,6 @@ def build_ion_table(data):
         })
     return pd.DataFrame(rows)
 
-
 def make_csv_download(frame):
     return frame.to_csv(index=False).encode("utf-8")
 
@@ -150,11 +146,28 @@ if st.sidebar.button("Restore original sample data"):
 
 st.sidebar.subheader("Corrosion scenario")
 scenario_name = st.sidebar.selectbox(
-    "Assumed corrosion-current scenario",
+    "Reference corrosion-current scenario",
     list(ICORR_SCENARIOS.keys()),
     index=1
 )
-icorr = ICORR_SCENARIOS[scenario_name]
+preset_icorr = ICORR_SCENARIOS[scenario_name]
+
+icorr = st.sidebar.number_input(
+    "Assumed corrosion current density, Icorr (µA/cm²)",
+    min_value=0.1,
+    max_value=500.0,
+    value=float(preset_icorr),
+    step=0.5,
+    format="%.2f",
+    help=(
+        "This is a user-entered illustrative assumption, not a measured value. "
+        "Choose a reference scenario above, then edit this number as needed."
+    )
+)
+st.sidebar.caption(
+    "Reference values: Low = 5, Moderate = 10, High = 20, Very high = 50 µA/cm². "
+    "The selected Icorr is used for the theoretical corrosion calculations."
+)
 temperature = st.sidebar.slider("Temperature (°C)", 20, 60, 25, 1)
 exposure_years = st.sidebar.selectbox("Exposure period (years)", [1, 2, 5, 10], index=2)
 activation_energy_kj = st.sidebar.slider(
@@ -289,7 +302,8 @@ with tab_water:
     st.bar_chart(ref_chart, use_container_width=True)
     st.caption("Percentage change is calculated relative to the distilled-water reading.")
 
-    ratio_view = data[["sample", "TDS_to_EC_ratio"]].copy()
+
+ratio_view = data[["sample", "TDS_to_EC_ratio"]].copy()
     ratio_view.columns = ["Sample", "TDS / EC ratio"]
     st.markdown("**TDS-to-conductivity ratio check**")
     st.dataframe(ratio_view.round(3), use_container_width=True, hide_index=True)
@@ -328,7 +342,7 @@ with tab_sensitivity:
     st.line_chart(pH_sweep.set_index("pH")[["Hydrogen ion concentration (mol/L)"]], use_container_width=True)
     st.caption("These are thermodynamic indicators based on the assumptions in the supplied model, not corrosion-rate predictions.")
 
-    st.markdown("**B. Conductivity and solution resistivity**")
+st.markdown("**B. Conductivity and solution resistivity**")
     k_values = np.logspace(np.log10(10), np.log10(5000), 60)
     conductivity_sweep = pd.DataFrame({
         "Conductivity (µS/cm)": k_values,
@@ -350,6 +364,12 @@ with tab_corrosion:
         "Scenario": list(ICORR_SCENARIOS.keys()),
         "Assumed Icorr (µA/cm²)": list(ICORR_SCENARIOS.values())
     })
+
+    # Add the user's editable Icorr value when it is not one of the four presets.
+    preset_values = list(ICORR_SCENARIOS.values())
+    if not any(np.isclose(icorr, value) for value in preset_values):
+        scenario_table.loc[len(scenario_table)] = ["User-defined", float(icorr)]
+
     scenario_table["Theoretical rate (mm/year)"] = corrosion_rate_mm_year(
         scenario_table["Assumed Icorr (µA/cm²)"].to_numpy()
     )
@@ -358,6 +378,10 @@ with tab_corrosion:
     st.dataframe(scenario_table.round(4), use_container_width=True, hide_index=True)
 
     selected_rate = float(corrosion_rate_mm_year(icorr))
+    st.info(
+        f"Current selected input: Icorr = {icorr:.2f} µA/cm². "
+        "This is an assumed scenario input, not an experimentally measured corrosion current density."
+    )
     selected_factor = float(arrhenius_factor(temperature, activation_energy_kj * 1000.0))
     temperature_adjusted_rate = selected_rate * selected_factor
     selected_loss = temperature_adjusted_rate * exposure_years
@@ -419,8 +443,3 @@ with tab_downloads:
                 key=f"download_{safe_name}"
             )
 
-st.divider()
-st.caption(
-    "Academic demonstration dashboard. Verify all instrument units, measured values, "
-    "model assumptions, equations and severity criteria with your supervisor before final reporting."
-)
